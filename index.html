@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sony Global TV - Powered by Kaveen</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+    <style>
+        body { background: #080808; color: white; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { background: #121212; height: 100vh; overflow-y: auto; border-right: 1px solid #333; }
+        .channel-card {
+            display: flex; align-items: center; padding: 12px; margin-bottom: 8px;
+            background: #1e1e1e; border-radius: 8px; cursor: pointer; transition: 0.3s;
+        }
+        .channel-card:hover { background: #0066ff; transform: scale(1.02); }
+        .channel-card img { width: 50px; height: 35px; object-fit: contain; margin-right: 15px; border-radius: 4px; }
+        .vjs-player { width: 100%; height: 450px; border-radius: 12px; overflow: hidden; border: 1px solid #333; }
+        .now-playing { background: #121212; padding: 15px; border-radius: 10px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-4 sidebar p-3">
+            <h4 class="mb-4 text-primary fw-bold">Sony Live Channels</h4>
+            <div id="channel-list">
+                <div class="text-center mt-5">Loading via Indian Proxy...</div>
+            </div>
+        </div>
+
+        <div class="col-md-8 p-4">
+            <div class="vjs-player">
+                <video id="my-video" class="video-js vjs-fluid vjs-default-skin vjs-big-play-centered" controls></video>
+            </div>
+            <div class="now-playing">
+                <h5 id="target-title" class="mb-1 text-info">Select a channel to start</h5>
+                <small class="text-muted">Status: Proxy Active (103.179.46.49)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+<script>
+    const player = videojs('my-video');
+    const rawM3U = "https://sony.rojoni9589.workers.dev/playlist.m3u?token=teachub12398";
+    
+    // අපේ Backend Proxy එක හරහා Request එක යැවීම
+    const proxiedM3U = `/api/proxy?url=${encodeURIComponent(rawM3U)}`;
+
+    async function loadChannels() {
+        try {
+            const res = await fetch(proxiedM3U);
+            const data = await res.text();
+            parseM3U(data);
+        } catch (err) {
+            document.getElementById('channel-list').innerHTML = "Proxy connection failed.";
+        }
+    }
+
+    function parseM3U(content) {
+        const lines = content.split('\n');
+        const listDiv = document.getElementById('channel-list');
+        listDiv.innerHTML = "";
+        
+        let chObj = {};
+        lines.forEach(line => {
+            if (line.includes('#EXTINF')) {
+                chObj.name = line.split(',')[1].trim();
+                const logo = line.match(/tvg-logo="([^"]+)"/);
+                chObj.logo = logo ? logo[1] : "https://via.placeholder.com/50";
+            } else if (line.startsWith('http')) {
+                const name = chObj.name;
+                const logo = chObj.logo;
+                const url = line.trim();
+
+                const card = document.createElement('div');
+                card.className = "channel-card";
+                card.innerHTML = `<img src="${logo}"> <span>${name}</span>`;
+                card.onclick = () => {
+                    // වීඩියෝ ස්ට්‍රීම් එකත් Proxy හරහා ප්ලේ කිරීම
+                    const proxiedStream = `/api/proxy?url=${encodeURIComponent(url)}`;
+                    player.src({ src: proxiedStream, type: 'application/x-mpegURL' });
+                    player.play();
+                    document.getElementById('target-title').innerText = "Playing: " + name;
+                };
+                listDiv.appendChild(card);
+                chObj = {};
+            }
+        });
+    }
+
+    loadChannels();
+</script>
+</body>
+</html>
